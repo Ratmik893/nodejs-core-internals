@@ -89,5 +89,3 @@ Document experiments you ran:
 - Mental model
 
 ---
-
-> If you can fill this template honestly, you understand the module.
