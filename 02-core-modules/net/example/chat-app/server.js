@@ -1,0 +1,112 @@
+import net from "net";
+
+const PORT = parseInt(process.env.PORT || "8230", 10);
+const HOST = process.env.HOST || "127.0.0.2";
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || "20", 10);
+
+let retry = 0;
+let isRetrying = false;
+
+const server = net.createServer();
+
+server.on("connection", (socket) => {
+  console.log(
+    `[CONNECTION] Client connected: ${socket.remoteAddress}:${socket.remotePort}`,
+  );
+
+  socket.on("data", (data) => {
+    console.log(`[DATA] Received: ${data.toString()}`);
+  });
+
+  socket.on("error", (err) => {
+    console.error(`[SOCKET ERROR] ${err.code}: ${err.message}`);
+  });
+
+  socket.on("close", (hadError) => {
+    const status = hadError ? "with error" : "normally";
+    console.log(`[CONNECTION] Client disconnected ${status}`);
+  });
+
+  socket.on("end", () => {
+    console.log(`[CONNECTION] Client initiated close`);
+  });
+});
+
+server.on("listening", () => {
+  console.log(`[SERVER] Listening on ${HOST}:${PORT}`);
+  retry = 0;
+});
+
+server.on("error", (err) => {
+  const errorCode = err.code || err.errors?.[0]?.code || "UNKNOWN";
+  const errorMsg = err.message || err.errors?.[0]?.message || "Unknown error";
+
+  console.error(`[SERVER ERROR] ${errorCode}: ${errorMsg}`);
+
+  if (err.code === "EADDRINUSE" && !isRetrying) {
+    handleAddressInUse();
+  } else if (err.code === "EACCES") {
+    console.error(
+      `[SERVER ERROR] Permission denied for ${HOST}:${PORT}. Use port > 1024 or run with sudo`,
+    );
+    process.exit(1);
+  } else if (err.code === "EADDRNOTAVAIL") {
+    console.error(
+      `[SERVER ERROR] Address ${HOST} not available on this machine`,
+    );
+    process.exit(1);
+  } else if (err.code === "EINVAL") {
+    console.error(`[SERVER ERROR] Invalid PORT or HOST configuration`);
+    process.exit(1);
+  } else if (!isRetrying) {
+    console.error(`[SERVER ERROR] Unexpected error, exiting...`);
+    process.exit(1);
+  }
+});
+
+function handleAddressInUse() {
+  isRetrying = true;
+  console.error(
+    `[RETRY] ${HOST}:${PORT} in use, retrying ${retry + 1}/${MAX_RETRIES}...`,
+  );
+
+  setTimeout(() => {
+    retry++;
+    if (retry < MAX_RETRIES) {
+      server.listen(PORT, HOST);
+    } else {
+      console.error(
+        `[SERVER ERROR] Max retries reached. Port ${PORT} still in use`,
+      );
+      console.error(
+        `[TIP] Run: lsof -i :${PORT} (Mac/Linux) or netstat -ano | findstr :${PORT} (Windows)`,
+      );
+      process.exit(1);
+    }
+    isRetrying = false;
+  }, 1000);
+}
+
+process.on("SIGINT", () => {
+  console.log(`\n[SHUTDOWN] Received SIGINT, closing server...`);
+  server.close(() => {
+    console.log(`[SHUTDOWN] Server closed`);
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error(`[SHUTDOWN] Forced exit after timeout`);
+    process.exit(1);
+  }, 5000);
+});
+
+process.on("SIGTERM", () => {
+  console.log(`\n[SHUTDOWN] Received SIGTERM, closing server...`);
+  server.close(() => {
+    console.log(`[SHUTDOWN] Server closed`);
+    process.exit(0);
+  });
+});
+
+console.log(`[SERVER] Starting on ${HOST}:${PORT}...`);
+server.listen(PORT, HOST);
