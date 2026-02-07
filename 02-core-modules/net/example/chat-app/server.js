@@ -1,7 +1,7 @@
 import net from "net";
 
-const PORT = parseInt(process.env.PORT || "8230", 10);
-const HOST = process.env.HOST || "127.0.0.2";
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const HOST = process.env.HOST || "localhost";
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || "20", 10);
 
 let retry = 0;
