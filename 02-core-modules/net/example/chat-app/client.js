@@ -1,10 +1,18 @@
 import net from "net";
+import readline from "readline/promises";
 
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "localhost";
 
-const client = net.createConnection({ port: PORT, host: HOST }, () => {
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+const client = net.createConnection({ port: PORT, host: HOST }, async () => {
   console.log(`[CLIENT] Connected to ${HOST}:${PORT}`);
+  const message = await rl.question("Write your message > ");
+  client.write(message);
 });
 
 client.on("data", (data) => {

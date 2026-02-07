@@ -15,7 +15,8 @@ server.on("connection", (socket) => {
   );
 
   socket.on("data", (data) => {
-    console.log(`[DATA] Received: ${data.toString()}`);
+    console.log(`[DATA] Received: ${data.toString("utf-8")}`);
+    socket.write(data);
   });
 
   socket.on("error", (err) => {
