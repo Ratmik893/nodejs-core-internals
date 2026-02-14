@@ -9,14 +9,65 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
+const clearLine = (dir) => {
+  return new Promise((resolve, _) => {
+    process.stdout.clearLine(dir, () => {
+      resolve();
+    });
+  });
+};
+
+const moveCursor = (dx, dy) => {
+  return new Promise((resolve, _) => {
+    process.stdout.moveCursor(dx, dy, () => {
+      resolve();
+    });
+  });
+};
+
+let isWaitingForInput = false;
+
 const client = net.createConnection({ port: PORT, host: HOST }, async () => {
   console.log(`[CLIENT] Connected to ${HOST}:${PORT}`);
-  const message = await rl.question("Write your message > ");
-  client.write(message);
-});
+  const ask = async () => {
+    isWaitingForInput = true;
+    const message = await rl.question("Write your message > ");
+    isWaitingForInput = false;
+    await moveCursor(0, -1);
+    await clearLine(0);
+    // Send message with newline delimiter
+    client.write(message + "\n");
+    // Immediately ask for next message after sending
+    ask();
+  };
+  ask();
 
-client.on("data", (data) => {
-  console.log(`[DATA] Received: ${data.toString()}`);
+  let buffer = "";
+  client.on("data", async (data) => {
+    // Append data to buffer
+    buffer += data.toString("utf-8");
+
+    // Process complete messages (split by newline)
+    const messages = buffer.split("\n");
+
+    // Keep the last incomplete message in buffer
+    buffer = messages.pop() || "";
+
+    // Display all complete messages
+    for (const msg of messages) {
+      if (msg.trim()) {
+        if (isWaitingForInput) {
+          console.log();
+          await moveCursor(0, -1);
+          await clearLine(0);
+        }
+        console.log(`[OTHER CLIENT] ${msg}`);
+        if (isWaitingForInput) {
+          process.stdout.write("Write your message > ");
+        }
+      }
+    }
+  });
 });
 
 client.on("error", (err) => {

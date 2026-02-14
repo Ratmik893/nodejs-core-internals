@@ -4,6 +4,7 @@ const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "localhost";
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || "20", 10);
 
+const clients = [];
 let retry = 0;
 let isRetrying = false;
 
@@ -14,9 +15,19 @@ server.on("connection", (socket) => {
     `[CONNECTION] Client connected: ${socket.remoteAddress}:${socket.remotePort}`,
   );
 
+  // Add socket to clients list when connected
+  clients.push(socket);
+
   socket.on("data", (data) => {
     console.log(`[DATA] Received: ${data.toString("utf-8")}`);
-    socket.write(data);
+
+    // Broadcast to all connected clients (except the sender)
+    clients.forEach((client) => {
+      // Only write if the socket is writable and not the sender
+      if (client !== socket && client.writable) {
+        client.write(data + "\n");
+      }
+    });
   });
 
   socket.on("error", (err) => {
@@ -26,6 +37,12 @@ server.on("connection", (socket) => {
   socket.on("close", (hadError) => {
     const status = hadError ? "with error" : "normally";
     console.log(`[CONNECTION] Client disconnected ${status}`);
+
+    // Remove the disconnected socket from clients array
+    const index = clients.indexOf(socket);
+    if (index > -1) {
+      clients.splice(index, 1);
+    }
   });
 
   socket.on("end", () => {
